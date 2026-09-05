@@ -48,9 +48,10 @@ public sealed class Settings
     public int IntervalMinutes { get; set; } = 5;
     public int Retention { get; set; } = 100;
     public string? PendingSnapshot { get; set; }
-    // False is the migration-safe state: existing windows are repositioned, but
-    // WWBB does not start any application until the user saves an explicit list.
+    // Legacy observe-only rules are disabled by the binary policy.
     public bool ApplicationRulesConfigured { get; set; }
+    public bool BinaryRulesConfigured { get; set; }
+    public bool RestoreExplorer { get; set; } = true;
     public List<ApplicationRule> MonitoredApplications { get; set; } = [];
     public List<string> ExcludedExecutables { get; set; } = [];
 }
@@ -58,28 +59,17 @@ public static class ApplicationPolicy
 {
     public static ApplicationRule? RuleFor(Settings settings, WindowEntry window)
     {
-        if (!settings.ApplicationRulesConfigured)
-        {
-            var executableName = window.ExePath.Replace('/', '\\').Split('\\').LastOrDefault() ?? "";
-            if (settings.ExcludedExecutables.Any(excluded =>
-                excluded.Equals(window.ExePath, StringComparison.OrdinalIgnoreCase)
-                || excluded.Equals(window.ProcessName, StringComparison.OrdinalIgnoreCase)
-                || excluded.Equals(executableName, StringComparison.OrdinalIgnoreCase)))
-                return null;
-            return new ApplicationRule
-            {
-                ProcessName = window.ProcessName,
-                ExePath = window.ExePath,
-                Mode = ApplicationRestoreMode.ObserveOnly
-            };
-        }
-
+        if (!settings.BinaryRulesConfigured && new[] { "steam", "steamwebhelper", "Telegram", "fdm" }
+            .Contains(window.ProcessName, StringComparer.OrdinalIgnoreCase)) return null;
+        if (!settings.ApplicationRulesConfigured) return null;
         return settings.MonitoredApplications.FirstOrDefault(rule =>
-            (!string.IsNullOrWhiteSpace(rule.ExePath)
+            rule.Mode == ApplicationRestoreMode.LaunchIfMissing &&
+            ((!string.IsNullOrWhiteSpace(rule.ExePath)
                 && rule.ExePath.Equals(window.ExePath, StringComparison.OrdinalIgnoreCase))
             || (string.IsNullOrWhiteSpace(rule.ExePath)
-                && rule.ProcessName.Equals(window.ProcessName, StringComparison.OrdinalIgnoreCase)));
+                && rule.ProcessName.Equals(window.ProcessName, StringComparison.OrdinalIgnoreCase))));
     }
+
 }
 public static class Json
 {

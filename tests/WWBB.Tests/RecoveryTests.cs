@@ -5,6 +5,35 @@ namespace WWBB.Tests;
 
 public sealed class RecoveryTests : IDisposable
 {
+    [Fact]
+    public void ExplorerDefaultsOnAndOffSurvivesReload()
+    {
+        var settings = System.Text.Json.JsonSerializer.Deserialize<Settings>("{}", Json.Options)!;
+        Assert.True(settings.RestoreExplorer);
+        settings.RestoreExplorer = false;
+        var restored = System.Text.Json.JsonSerializer.Deserialize<Settings>(
+            System.Text.Json.JsonSerializer.Serialize(settings, Json.Options), Json.Options)!;
+        Assert.False(restored.RestoreExplorer);
+    }
+
+    [Theory]
+    [InlineData("steam")]
+    [InlineData("steamwebhelper")]
+    [InlineData("Telegram")]
+    [InlineData("fdm")]
+    public void SelfStartingAppsAreDisabledOnMigrationButCanBeExplicitlyEnabled(string name)
+    {
+        var settings = new Settings
+        {
+            ApplicationRulesConfigured = true,
+            MonitoredApplications = [new() { ProcessName = name, Mode = ApplicationRestoreMode.LaunchIfMissing }]
+        };
+        var window = new WindowEntry { ProcessName = name };
+        Assert.Null(ApplicationPolicy.RuleFor(settings, window));
+        settings.BinaryRulesConfigured = true;
+        Assert.NotNull(ApplicationPolicy.RuleFor(settings, window));
+    }
+
     private readonly string root = Path.Combine(Path.GetTempPath(), "wwbb-tests-" + Guid.NewGuid().ToString("N"));
     public void Dispose() { if (Directory.Exists(root)) Directory.Delete(root, true); }
 
@@ -98,7 +127,7 @@ public sealed class RecoveryTests : IDisposable
     }
 
     [Fact]
-    public void ExistingSettingsMigrateToObserveOnly()
+    public void ExistingSettingsMigrateToDisabled()
     {
         var rule = ApplicationPolicy.RuleFor(new Settings(), new WindowEntry
         {
@@ -106,8 +135,7 @@ public sealed class RecoveryTests : IDisposable
             ExePath = @"C:\Apps\FDM\fdm.exe"
         });
 
-        Assert.NotNull(rule);
-        Assert.Equal(ApplicationRestoreMode.ObserveOnly, rule.Mode);
+        Assert.Null(rule);
     }
 
     [Fact]
@@ -135,11 +163,12 @@ public sealed class RecoveryTests : IDisposable
     [Theory]
     [InlineData(ApplicationRestoreMode.ObserveOnly)]
     [InlineData(ApplicationRestoreMode.LaunchIfMissing)]
-    public void ConfiguredRuleSelectsItsRestoreMode(ApplicationRestoreMode mode)
+    public void OnlyLaunchRulesRemainEnabled(ApplicationRestoreMode mode)
     {
         var settings = new Settings
         {
             ApplicationRulesConfigured = true,
+            BinaryRulesConfigured = true,
             MonitoredApplications =
             [
                 new ApplicationRule { ProcessName = "Steam", ExePath = @"C:\Steam\steam.exe", Mode = mode }
@@ -151,7 +180,7 @@ public sealed class RecoveryTests : IDisposable
             ProcessName = "steam",
             ExePath = @"c:\steam\STEAM.exe"
         });
-        Assert.NotNull(rule);
-        Assert.Equal(mode, rule.Mode);
+        if (mode == ApplicationRestoreMode.ObserveOnly) Assert.Null(rule);
+        else { Assert.NotNull(rule); Assert.Equal(mode, rule.Mode); }
     }
 }

@@ -73,7 +73,7 @@ internal sealed class RestoreEngine(Action<string> status)
         }
 
         var retry = new List<ExplorerEntry>();
-        foreach (var entry in saved.Explorer)
+        foreach (var entry in saved.Explorer.Where(_ => settings.RestoreExplorer))
         {
             ct.ThrowIfCancellationRequested();
             if (!await RestoreFolder(entry, ct)) retry.Add(entry);
