@@ -9,7 +9,8 @@ namespace WindowsWorkspaceBlackBox.Tray;
 
 internal sealed class TrayContext : ApplicationContext
 {
-    private readonly NotifyIcon icon = new() { Visible = true, Icon = SystemIcons.Application, Text = "Windows Workspace BlackBox" };
+    private readonly Icon appIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? (Icon)SystemIcons.Application.Clone();
+    private readonly NotifyIcon icon = new() { Visible = true, Text = "Windows Workspace BlackBox" };
     private readonly System.Windows.Forms.Timer timer = new();
     private readonly System.Windows.Forms.Timer foregroundTracker = new() { Interval = 250 };
     private readonly CancellationTokenSource lifetime = new();
@@ -24,6 +25,7 @@ internal sealed class TrayContext : ApplicationContext
 
     internal TrayContext(bool startup)
     {
+        icon.Icon = appIcon;
         var menu = new ContextMenuStrip();
         menu.Items.Add(new ToolStripMenuItem("Windows Workspace BlackBox · 0.1.0") { Enabled = false });
         menu.Items.Add(state); menu.Items.Add(new ToolStripSeparator());
@@ -31,7 +33,7 @@ internal sealed class TrayContext : ApplicationContext
         Add(menu, "Восстановить последний снимок", RestoreLastAsync);
         Add(menu, "Выбрать снимок для восстановления", ChooseAsync);
         menu.Items.Add(cancel); cancel.Click += (_, _) => operation?.Cancel();
-        Add(menu, "Продолжить без восстановления", () => { settings.PendingSnapshot = null; AppData.SaveSettings(settings); SetState("Запись", SystemIcons.Application); return Task.CompletedTask; });
+        Add(menu, "Продолжить без восстановления", () => { settings.PendingSnapshot = null; AppData.SaveSettings(settings); SetState("Запись", appIcon); return Task.CompletedTask; });
         menu.Items.Add(new ToolStripSeparator());
         Add(menu, "Настройки", EditSettingsAsync);
         menu.Items.Add("Открыть папку данных", null, (_, _) => { Directory.CreateDirectory(AppData.Root); Process.Start(new ProcessStartInfo(AppData.Root) { UseShellExecute = true }); });
@@ -91,7 +93,7 @@ internal sealed class TrayContext : ApplicationContext
             await RestoreLastAsync();
         }
         else if (settings.PendingSnapshot != null) { SetState("Запись · доступен снимок до перезапуска", SystemIcons.Information); Balloon("Снимок до перезапуска сохранён. Восстановить его можно из меню."); }
-        else SetState("Запись", SystemIcons.Application);
+        else SetState("Запись", appIcon);
     }
 
     private async Task<bool> SaveAsync(string reason)
@@ -108,7 +110,7 @@ internal sealed class TrayContext : ApplicationContext
         AppData.Log($"Snapshot saved: {Path.GetFileName(path)}, windows={snapshot.Windows.Count}, explorer={snapshot.Explorer.Count}");
         var keep = settings.Retention; var pinned = settings.PendingSnapshot;
         _ = Task.Run(async () => { try { await store.CleanupAsync(keep, pinned); } catch (Exception e) { AppData.Log($"Cleanup: {e}"); } });
-        SetState($"Запись · сохранено {DateTime.Now:HH:mm}", SystemIcons.Application);
+        SetState($"Запись · сохранено {DateTime.Now:HH:mm}", appIcon);
         if (reason == "manual") Balloon($"Сохранено: окон — {snapshot.Windows.Count}, папок — {snapshot.Explorer.Count}.");
         return true;
     }
@@ -186,7 +188,7 @@ internal sealed class TrayContext : ApplicationContext
     {
         stopping = true; lifetime.Cancel(); timer.Stop();
         SystemEvents.SessionEnding -= SessionEnding; SystemEvents.SessionSwitch -= SessionSwitch;
-        icon.Visible = false; icon.Dispose(); timer.Dispose(); foregroundTracker.Stop(); foregroundTracker.Dispose();
+        icon.Visible = false; icon.Dispose(); appIcon.Dispose(); timer.Dispose(); foregroundTracker.Stop(); foregroundTracker.Dispose();
         base.ExitThreadCore();
     }
 }

@@ -37,7 +37,7 @@ jobs:
           New-Item -ItemType Directory -Force artifacts/installer | Out-Null
           $sourceExe = (Resolve-Path 'artifacts/publish/WindowsWorkspaceBlackBox.exe').Path
           $outputExe = Join-Path $PWD 'artifacts/installer/WindowsWorkspaceBlackBox-Setup-0.1.0-x64.exe'
-          & $compiler "/DSourceExe=$sourceExe" "/DOutputExe=$outputExe" installer/WindowsWorkspaceBlackBox.nsi
+          & $compiler /INPUTCHARSET UTF8 "/DSourceExe=$sourceExe" "/DOutputExe=$outputExe" installer/WindowsWorkspaceBlackBox.nsi
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Checksums
         shell: pwsh
