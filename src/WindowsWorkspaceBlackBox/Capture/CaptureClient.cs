@@ -6,12 +6,17 @@ namespace WindowsWorkspaceBlackBox.Capture;
 
 internal static class CaptureClient
 {
-    internal static async Task<Snapshot> CaptureAsync(bool fast, CancellationToken ct)
+    internal static async Task<Snapshot> CaptureAsync(bool fast, CancellationToken ct, long preferredForeground = 0)
     {
         var start = new ProcessStartInfo(Environment.ProcessPath!)
         { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
         start.ArgumentList.Add("--capture");
         if (fast) start.ArgumentList.Add("--fast");
+        if (preferredForeground != 0)
+        {
+            start.ArgumentList.Add("--foreground-hwnd");
+            start.ArgumentList.Add(preferredForeground.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
         using var process = Process.Start(start) ?? throw new IOException("Capture process did not start");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(fast ? 12 : 60));

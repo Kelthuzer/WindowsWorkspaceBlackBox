@@ -55,6 +55,10 @@ internal sealed class RestoreEngine(Action<string> status)
                         live = await CaptureClient.CaptureAsync(true, ct);
                         current = Matching.Best(window, live.Windows, used);
                         if (current != null) break;
+                        // Single-instance tray applications often keep a background process but
+                        // create/show their main window only when invoked again.
+                        if (unclaimed && deadline.Elapsed >= TimeSpan.FromSeconds(3) && launched.Add(group))
+                            Launch(window);
                     }
                 }
                 if (current == null) Failure($"Не найдено окно: {window.ProcessName} — {window.Title}");
@@ -109,7 +113,7 @@ internal sealed class RestoreEngine(Action<string> status)
         // Interpreter command lines can repeat a script instead of reopening its window.
         var interpreters = new[] { "cmd", "powershell", "pwsh", "wscript", "cscript", "mshta", "rundll32", "regsvr32", "conhost", "wt", "WindowsTerminal" };
         if (!interpreters.Contains(window.ProcessName, StringComparer.OrdinalIgnoreCase))
-            foreach (var arg in window.Arguments) start.ArgumentList.Add(arg);
+            foreach (var arg in Matching.SafeLaunchArguments(window.Arguments)) start.ArgumentList.Add(arg);
         else AppData.Log($"Interpreter arguments omitted: {window.ProcessName}");
         using var launchedProcess = Process.Start(start);
         AppData.Log($"Launch: {window.ExePath}");

@@ -20,7 +20,9 @@ internal static class Program
         {
             try
             {
-                var snapshot = new Snapshot { Windows = WindowCollector.Capture(args.Contains("--fast")) };
+                var foregroundIndex = Array.IndexOf(args, "--foreground-hwnd");
+                long.TryParse(foregroundIndex >= 0 && foregroundIndex + 1 < args.Length ? args[foregroundIndex + 1] : null, out var foreground);
+                var snapshot = new Snapshot { Windows = WindowCollector.Capture(args.Contains("--fast"), foreground) };
                 ExplorerCollector.Capture(snapshot);
                 using var output = Console.OpenStandardOutput();
                 JsonSerializer.Serialize(output, snapshot, Json.Options);

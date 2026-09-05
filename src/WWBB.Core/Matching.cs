@@ -2,6 +2,12 @@ namespace WWBB.Core;
 
 public static class Matching
 {
+    private static readonly HashSet<string> BackgroundArguments = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "--hidden", "-hidden", "/hidden", "--background", "-background", "/background",
+        "--silent", "-silent", "/silent", "--minimized", "--start-minimized", "-minimized", "/min"
+    };
+
     public static int Score(WindowEntry saved, WindowEntry live)
     {
         if (string.IsNullOrEmpty(saved.ExePath) || !saved.ExePath.Equals(live.ExePath, StringComparison.OrdinalIgnoreCase)) return -1;
@@ -18,6 +24,10 @@ public static class Matching
             .Where(x => x.Score >= 0).OrderByDescending(x => x.Score).Select(x => x.Window).FirstOrDefault();
 
     public static bool SamePath(string a, string b) => a.TrimEnd('\\', '/').Equals(b.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+
+    // Restoring a window must not replay the flag that originally hid it in the tray.
+    public static IEnumerable<string> SafeLaunchArguments(IEnumerable<string> arguments)
+        => arguments.Where(argument => !BackgroundArguments.Contains(argument));
 
     public static Box Place(WindowEntry saved, MonitorLayout target)
     {

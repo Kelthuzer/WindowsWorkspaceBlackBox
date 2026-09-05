@@ -8,11 +8,12 @@ namespace WindowsWorkspaceBlackBox.Capture;
 internal static class WindowCollector
 {
     private static readonly HashSet<string> IgnoredClasses = ["Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "tooltips_class32", "DV2ControlHost"];
-    internal static List<WindowEntry> Capture(bool fast)
+    internal static List<WindowEntry> Capture(bool fast, long preferredForeground = 0)
     {
         var windows = new List<WindowEntry>();
         var processes = new Dictionary<int, (string Name, string Exe, string? Line)>();
-        var foreground = Win32.GetForegroundWindow();
+        var foreground = preferredForeground != 0 && Win32.IsWindow((nint)preferredForeground)
+            ? (nint)preferredForeground : Win32.GetForegroundWindow();
         Win32.EnumWindows((hwnd, _) =>
         {
             try

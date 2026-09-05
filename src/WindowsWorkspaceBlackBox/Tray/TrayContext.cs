@@ -11,6 +11,7 @@ internal sealed class TrayContext : ApplicationContext
 {
     private readonly NotifyIcon icon = new() { Visible = true, Icon = SystemIcons.Application, Text = "Windows Workspace BlackBox" };
     private readonly System.Windows.Forms.Timer timer = new();
+    private readonly System.Windows.Forms.Timer foregroundTracker = new() { Interval = 250 };
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource? operation;
     private readonly Settings settings = AppData.LoadSettings();
@@ -19,6 +20,7 @@ internal sealed class TrayContext : ApplicationContext
     private readonly ToolStripMenuItem cancel = new("Отменить восстановление") { Enabled = false };
     private readonly List<ToolStripMenuItem> actions = [];
     private bool busy, stopping, locked;
+    private long lastUserForeground;
 
     internal TrayContext(bool startup)
     {
@@ -37,6 +39,8 @@ internal sealed class TrayContext : ApplicationContext
         icon.ContextMenuStrip = menu;
         icon.DoubleClick += async (_, _) => await GuardAsync(() => SaveAsync("manual"));
         timer.Tick += async (_, _) => { if (!locked) await GuardAsync(() => SaveAsync("timer")); };
+        foregroundTracker.Tick += (_, _) => TrackForeground();
+        foregroundTracker.Start();
         SystemEvents.SessionEnding += SessionEnding;
         SystemEvents.SessionSwitch += SessionSwitch;
         // Run after the WinForms message loop establishes its synchronization context.
@@ -92,7 +96,7 @@ internal sealed class TrayContext : ApplicationContext
         if (stopping || locked) return false;
         SetState("Сохранение…", SystemIcons.Information);
         AppData.Log("Snapshot started: " + reason);
-        var snapshot = await CaptureClient.CaptureAsync(false, lifetime.Token);
+        var snapshot = await CaptureClient.CaptureAsync(false, lifetime.Token, lastUserForeground);
         if (stopping || locked) return false;
         foreach (var warning in snapshot.Warnings) AppData.Log(warning);
         if (!snapshot.ExplorerComplete) throw new InvalidDataException("Не все папки Explorer доступны для чтения. Предыдущий снимок сохранён; подробности в журнале.");
@@ -158,6 +162,16 @@ internal sealed class TrayContext : ApplicationContext
     }
     private void Balloon(string text, ToolTipIcon type = ToolTipIcon.Info)
     { if (!stopping) icon.ShowBalloonTip(5000, "Windows Workspace BlackBox", text, type); }
+    private void TrackForeground()
+    {
+        var hwnd = Win32.GetForegroundWindow();
+        if (hwnd == 0 || !Win32.IsWindowVisible(hwnd)) return;
+        var className = Win32.Class(hwnd);
+        if (className is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "NotifyIconOverflowWindow" or "#32768") return;
+        Win32.GetWindowThreadProcessId(hwnd, out var pid);
+        if (pid == Environment.ProcessId) return;
+        lastUserForeground = hwnd.ToInt64();
+    }
     private void SessionEnding(object? sender, SessionEndingEventArgs e) { stopping = true; lifetime.Cancel(); }
     private void SessionSwitch(object? sender, SessionSwitchEventArgs e)
     {
@@ -168,7 +182,7 @@ internal sealed class TrayContext : ApplicationContext
     {
         stopping = true; lifetime.Cancel(); timer.Stop();
         SystemEvents.SessionEnding -= SessionEnding; SystemEvents.SessionSwitch -= SessionSwitch;
-        icon.Visible = false; icon.Dispose(); timer.Dispose();
+        icon.Visible = false; icon.Dispose(); timer.Dispose(); foregroundTracker.Stop(); foregroundTracker.Dispose();
         base.ExitThreadCore();
     }
 }

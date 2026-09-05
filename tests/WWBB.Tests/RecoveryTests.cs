@@ -75,4 +75,11 @@ public sealed class RecoveryTests : IDisposable
     [InlineData(@"\\server\Share\Folder\", @"\\SERVER\share\folder")]
     [InlineData(@"C:\", @"c:\")]
     public void FolderMatchingHandlesUncAndCase(string a, string b) => Assert.True(Matching.SamePath(a,b));
+
+    [Fact]
+    public void RestoreDropsBackgroundFlagsButKeepsNormalArguments()
+    {
+        var result = Matching.SafeLaunchArguments(["--hidden", "--updated", "/min", "document.txt"]).ToArray();
+        Assert.Equal(["--updated", "document.txt"], result);
+    }
 }
