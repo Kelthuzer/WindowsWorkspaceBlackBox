@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WWBB.Core/WWBB.Core.csproj" />
+    <Project Path="src/WindowsWorkspaceBlackBox/WindowsWorkspaceBlackBox.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WWBB.Tests/WWBB.Tests.csproj" />
+  </Folder>
+</Solution>
