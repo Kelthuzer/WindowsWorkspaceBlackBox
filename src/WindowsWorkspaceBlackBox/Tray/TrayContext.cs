@@ -84,7 +84,10 @@ internal sealed class TrayContext : ApplicationContext
             var wait = Stopwatch.StartNew();
             while (Win32.GetShellWindow() == 0 && wait.Elapsed < TimeSpan.FromSeconds(60)) await Task.Delay(1000, lifetime.Token);
             if (Win32.GetShellWindow() == 0) throw new TimeoutException("Рабочий стол не готов. Исходный снимок сохранён.");
-            await Task.Delay(3000, lifetime.Token);
+            // Give ordinary HKCU/Startup applications (Steam, Telegram, etc.) time
+            // to create their own windows before the restore engine considers launch fallbacks.
+            SetState("Ожидание автозапуска приложений…", SystemIcons.Information);
+            await Task.Delay(TimeSpan.FromSeconds(15), lifetime.Token);
             await RestoreLastAsync();
         }
         else if (settings.PendingSnapshot != null) { SetState("Запись · доступен снимок до перезапуска", SystemIcons.Information); Balloon("Снимок до перезапуска сохранён. Восстановить его можно из меню."); }
@@ -147,7 +150,8 @@ internal sealed class TrayContext : ApplicationContext
     }
     private Task EditSettingsAsync()
     {
-        using var form = new SettingsForm(settings);
+        var known = store.Latest()?.Value.Windows ?? [];
+        using var form = new SettingsForm(settings, known);
         if (form.ShowDialog() == DialogResult.OK)
         {
             form.Apply(settings); Autostart.Set(settings.StartWithWindows); AppData.SaveSettings(settings);

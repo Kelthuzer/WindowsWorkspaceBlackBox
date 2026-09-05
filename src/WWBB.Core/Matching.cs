@@ -1,5 +1,7 @@
 namespace WWBB.Core;
 
+public sealed record LaunchPlan(string ExePath, string[] Arguments);
+
 public static class Matching
 {
     private static readonly HashSet<string> BackgroundArguments = new(StringComparer.OrdinalIgnoreCase)
@@ -28,6 +30,20 @@ public static class Matching
     // Restoring a window must not replay the flag that originally hid it in the tray.
     public static IEnumerable<string> SafeLaunchArguments(IEnumerable<string> arguments)
         => arguments.Where(argument => !BackgroundArguments.Contains(argument));
+
+    public static LaunchPlan ResolveLaunch(WindowEntry window)
+    {
+        // The visible Steam window belongs to steamwebhelper, but that helper is not
+        // an application entry point. Its command line identifies the real client.
+        if (window.ProcessName.Equals("steamwebhelper", StringComparison.OrdinalIgnoreCase))
+        {
+            const string prefix = "-steampath=";
+            var steamPath = window.Arguments.FirstOrDefault(a => a.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(steamPath))
+                return new(steamPath[prefix.Length..].Trim('"'), []);
+        }
+        return new(window.ExePath, SafeLaunchArguments(window.Arguments).ToArray());
+    }
 
     public static Box Place(WindowEntry saved, MonitorLayout target)
     {

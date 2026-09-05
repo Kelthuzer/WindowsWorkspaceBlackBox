@@ -82,4 +82,76 @@ public sealed class RecoveryTests : IDisposable
         var result = Matching.SafeLaunchArguments(["--hidden", "--updated", "/min", "document.txt"]).ToArray();
         Assert.Equal(["--updated", "document.txt"], result);
     }
+
+    [Fact]
+    public void SteamWindowLaunchesThroughMainClient()
+    {
+        var window = new WindowEntry
+        {
+            ProcessName = "steamwebhelper",
+            ExePath = @"C:\Games\Steam\bin\cef\steamwebhelper.exe",
+            Arguments = ["-nocrashdialog", @"-steampath=C:\Games\Steam\steam.exe", "--hidden"]
+        };
+        var plan = Matching.ResolveLaunch(window);
+        Assert.Equal(@"C:\Games\Steam\steam.exe", plan.ExePath);
+        Assert.Empty(plan.Arguments);
+    }
+
+    [Fact]
+    public void ExistingSettingsMigrateToObserveOnly()
+    {
+        var rule = ApplicationPolicy.RuleFor(new Settings(), new WindowEntry
+        {
+            ProcessName = "fdm",
+            ExePath = @"C:\Apps\FDM\fdm.exe"
+        });
+
+        Assert.NotNull(rule);
+        Assert.Equal(ApplicationRestoreMode.ObserveOnly, rule.Mode);
+    }
+
+    [Fact]
+    public void ConfiguredListExcludesUncheckedApplications()
+    {
+        var settings = new Settings { ApplicationRulesConfigured = true };
+        Assert.Null(ApplicationPolicy.RuleFor(settings, new WindowEntry
+        {
+            ProcessName = "Telegram",
+            ExePath = @"C:\Apps\Telegram\Telegram.exe"
+        }));
+    }
+
+    [Fact]
+    public void LegacyExclusionRemainsExcludedDuringMigration()
+    {
+        var settings = new Settings { ExcludedExecutables = ["fdm.exe"] };
+        Assert.Null(ApplicationPolicy.RuleFor(settings, new WindowEntry
+        {
+            ProcessName = "fdm",
+            ExePath = @"C:\Apps\FDM\fdm.exe"
+        }));
+    }
+
+    [Theory]
+    [InlineData(ApplicationRestoreMode.ObserveOnly)]
+    [InlineData(ApplicationRestoreMode.LaunchIfMissing)]
+    public void ConfiguredRuleSelectsItsRestoreMode(ApplicationRestoreMode mode)
+    {
+        var settings = new Settings
+        {
+            ApplicationRulesConfigured = true,
+            MonitoredApplications =
+            [
+                new ApplicationRule { ProcessName = "Steam", ExePath = @"C:\Steam\steam.exe", Mode = mode }
+            ]
+        };
+
+        var rule = ApplicationPolicy.RuleFor(settings, new WindowEntry
+        {
+            ProcessName = "steam",
+            ExePath = @"c:\steam\STEAM.exe"
+        });
+        Assert.NotNull(rule);
+        Assert.Equal(mode, rule.Mode);
+    }
 }

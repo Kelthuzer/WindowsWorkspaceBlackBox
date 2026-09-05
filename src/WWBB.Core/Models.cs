@@ -6,6 +6,13 @@ namespace WWBB.Core;
 public record Box(int X, int Y, int Width, int Height);
 public record MonitorLayout(string Device, Box Bounds, Box WorkArea, uint Dpi = 96);
 public enum WindowState { Normal, Minimized, Maximized }
+public enum ApplicationRestoreMode { ObserveOnly, LaunchIfMissing }
+public sealed record ApplicationRule
+{
+    public string ProcessName { get; init; } = "";
+    public string ExePath { get; init; } = "";
+    public ApplicationRestoreMode Mode { get; init; } = ApplicationRestoreMode.ObserveOnly;
+}
 public sealed record WindowEntry
 {
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
@@ -41,7 +48,38 @@ public sealed class Settings
     public int IntervalMinutes { get; set; } = 5;
     public int Retention { get; set; } = 100;
     public string? PendingSnapshot { get; set; }
+    // False is the migration-safe state: existing windows are repositioned, but
+    // WWBB does not start any application until the user saves an explicit list.
+    public bool ApplicationRulesConfigured { get; set; }
+    public List<ApplicationRule> MonitoredApplications { get; set; } = [];
     public List<string> ExcludedExecutables { get; set; } = [];
+}
+public static class ApplicationPolicy
+{
+    public static ApplicationRule? RuleFor(Settings settings, WindowEntry window)
+    {
+        if (!settings.ApplicationRulesConfigured)
+        {
+            var executableName = window.ExePath.Replace('/', '\\').Split('\\').LastOrDefault() ?? "";
+            if (settings.ExcludedExecutables.Any(excluded =>
+                excluded.Equals(window.ExePath, StringComparison.OrdinalIgnoreCase)
+                || excluded.Equals(window.ProcessName, StringComparison.OrdinalIgnoreCase)
+                || excluded.Equals(executableName, StringComparison.OrdinalIgnoreCase)))
+                return null;
+            return new ApplicationRule
+            {
+                ProcessName = window.ProcessName,
+                ExePath = window.ExePath,
+                Mode = ApplicationRestoreMode.ObserveOnly
+            };
+        }
+
+        return settings.MonitoredApplications.FirstOrDefault(rule =>
+            (!string.IsNullOrWhiteSpace(rule.ExePath)
+                && rule.ExePath.Equals(window.ExePath, StringComparison.OrdinalIgnoreCase))
+            || (string.IsNullOrWhiteSpace(rule.ExePath)
+                && rule.ProcessName.Equals(window.ProcessName, StringComparison.OrdinalIgnoreCase)));
+    }
 }
 public static class Json
 {

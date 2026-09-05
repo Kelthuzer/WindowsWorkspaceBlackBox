@@ -25,8 +25,7 @@ internal sealed class RestoreEngine(Action<string> status)
     {
         AppData.Log($"Restore started: {saved.CapturedAt:O}");
         var live = await CaptureClient.CaptureAsync(false, ct);
-        var wanted = saved.Windows.Where(w => !ExplorerCollector.IsExplorer(w)
-            && !settings.ExcludedExecutables.Contains(w.ProcessName, StringComparer.OrdinalIgnoreCase)).ToList();
+        var wanted = saved.Windows.Where(w => !ExplorerCollector.IsExplorer(w) && ApplicationPolicy.RuleFor(settings, w) != null).ToList();
         // Assign strongest matches first so a generic match cannot steal another document's exact title.
         var pairs = (from s in wanted from w in live.Windows let score = Matching.Score(s, w)
                      where score >= 100 orderby score descending select (Saved: s, Live: w)).ToList();
@@ -36,6 +35,12 @@ internal sealed class RestoreEngine(Action<string> status)
         foreach (var window in wanted.Where(w => !matched.ContainsKey(w.Id)))
         {
             ct.ThrowIfCancellationRequested();
+            var rule = ApplicationPolicy.RuleFor(settings, window)!;
+            if (rule.Mode == ApplicationRestoreMode.ObserveOnly)
+            {
+                AppData.Log($"Observe only; window not currently available: {window.ProcessName} — {window.Title}");
+                continue;
+            }
             status($"Приложение: {window.ProcessName}");
             try
             {
@@ -108,15 +113,16 @@ internal sealed class RestoreEngine(Action<string> status)
 
     private void Launch(WindowEntry window)
     {
-        if (string.IsNullOrWhiteSpace(window.ExePath) || !File.Exists(window.ExePath)) throw new FileNotFoundException("EXE недоступен", window.ExePath);
-        var start = new ProcessStartInfo(window.ExePath) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(window.ExePath)! };
+        var plan = Matching.ResolveLaunch(window);
+        if (string.IsNullOrWhiteSpace(plan.ExePath) || !File.Exists(plan.ExePath)) throw new FileNotFoundException("EXE недоступен", plan.ExePath);
+        var start = new ProcessStartInfo(plan.ExePath) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(plan.ExePath)! };
         // Interpreter command lines can repeat a script instead of reopening its window.
         var interpreters = new[] { "cmd", "powershell", "pwsh", "wscript", "cscript", "mshta", "rundll32", "regsvr32", "conhost", "wt", "WindowsTerminal" };
         if (!interpreters.Contains(window.ProcessName, StringComparer.OrdinalIgnoreCase))
-            foreach (var arg in Matching.SafeLaunchArguments(window.Arguments)) start.ArgumentList.Add(arg);
+            foreach (var arg in plan.Arguments) start.ArgumentList.Add(arg);
         else AppData.Log($"Interpreter arguments omitted: {window.ProcessName}");
         using var launchedProcess = Process.Start(start);
-        AppData.Log($"Launch: {window.ExePath}");
+        AppData.Log($"Launch: {plan.ExePath}");
     }
 
     private async Task<bool> RestoreFolder(ExplorerEntry entry, CancellationToken ct)

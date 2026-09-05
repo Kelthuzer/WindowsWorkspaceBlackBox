@@ -30,6 +30,7 @@ internal static class AppData
             result.IntervalMinutes = Math.Clamp(result.IntervalMinutes, 1, 60);
             result.Retention = Math.Clamp(result.Retention, 1, 1000);
             result.ExcludedExecutables ??= [];
+            result.MonitoredApplications ??= [];
             return result;
         }
         catch (Exception e) { Log($"Settings invalid; automatic restore disabled: {e.Message}"); return new() { AutoRestore = false }; }
