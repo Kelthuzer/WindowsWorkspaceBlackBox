@@ -7,8 +7,14 @@ Unicode true
 !define VERSION "0.1.0"
 !define EXE "WindowsWorkspaceBlackBox.exe"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\WindowsWorkspaceBlackBox"
+!ifndef SourceExe
+  !define SourceExe "..\artifacts\publish\${EXE}"
+!endif
+!ifndef OutputExe
+  !define OutputExe "..\artifacts\installer\WindowsWorkspaceBlackBox-Setup-${VERSION}-x64.exe"
+!endif
 Name "${APP}"
-OutFile "${__FILEDIR__}\..\artifacts\installer\WindowsWorkspaceBlackBox-Setup-${VERSION}-x64.exe"
+OutFile "${OutputExe}"
 InstallDir "$PROGRAMFILES64\WindowsWorkspaceBlackBox"
 InstallDirRegKey HKLM "${UNINSTALL_KEY}" "InstallLocation"
 RequestExecutionLevel admin
@@ -42,7 +48,7 @@ FunctionEnd
 Section "Windows Workspace BlackBox" Main
   SetOutPath "$INSTDIR"
   ; Files in use produce a retry/cancel prompt; the installer never kills the user's workspace.
-  File "${__FILEDIR__}\..\artifacts\publish\${EXE}"
+  File "${SourceExe}"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   CreateDirectory "$SMPROGRAMS\${APP}"
   CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\${EXE}"
