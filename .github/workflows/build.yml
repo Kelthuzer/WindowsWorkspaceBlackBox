@@ -1,4 +1,4 @@
-name: Build Windows app and installer
+name: Build standalone Windows EXE
 on:
   push:
     branches: [main]
@@ -26,40 +26,11 @@ jobs:
         run: dotnet publish src/WindowsWorkspaceBlackBox/WindowsWorkspaceBlackBox.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/publish
       - name: Verify self-contained EXE integrity
         run: python scripts/verify_bundle.py artifacts/publish/WindowsWorkspaceBlackBox.exe
-      - name: Build setup EXE
+      - name: EXE checksum
         shell: pwsh
-        run: |
-          $compiler = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
-          if (!(Test-Path $compiler)) {
-            choco install nsis -y --no-progress
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          New-Item -ItemType Directory -Force artifacts/installer | Out-Null
-          $sourceExe = (Resolve-Path 'artifacts/publish/WindowsWorkspaceBlackBox.exe').Path
-          $outputExe = Join-Path $PWD 'artifacts/installer/WindowsWorkspaceBlackBox-Setup-0.1.0-x64.exe'
-          & $compiler /INPUTCHARSET UTF8 "/DSourceExe=$sourceExe" "/DOutputExe=$outputExe" installer/WindowsWorkspaceBlackBox.nsi
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Checksums
-        shell: pwsh
-        run: |
-          Get-ChildItem artifacts/publish/*.exe, artifacts/installer/*.exe | ForEach-Object {
-            $hash = Get-FileHash $_.FullName -Algorithm SHA256
-            "$($hash.Hash.ToLower())  $($_.Name)"
-          } | Set-Content artifacts/SHA256SUMS.txt
+        run: Get-FileHash artifacts/publish/WindowsWorkspaceBlackBox.exe -Algorithm SHA256
       - uses: actions/upload-artifact@v4
         with:
-          name: WindowsWorkspaceBlackBox-Setup-x64
-          path: |
-            artifacts/installer/*.exe
-            artifacts/SHA256SUMS.txt
+          name: WindowsWorkspaceBlackBox-x64
+          path: artifacts/publish/WindowsWorkspaceBlackBox.exe
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        with:
-          name: WindowsWorkspaceBlackBox-Portable-x64
-          path: artifacts/publish/
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: Test-results
-          path: tests/WWBB.Tests/TestResults/
