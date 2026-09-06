@@ -20,10 +20,12 @@ internal sealed class RestoreEngine(Action<string> status)
     private readonly HashSet<string> launched = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int> assignedProcesses = new(StringComparer.OrdinalIgnoreCase);
     private readonly RestoreReport report = new();
+    private RestoreWindowMode windowMode;
 
     internal async Task<RestoreReport> RunAsync(Snapshot saved, Settings settings, CancellationToken ct)
     {
         AppData.Log($"Restore started: {saved.CapturedAt:O}");
+        windowMode = settings.WindowMode;
         var live = await CaptureClient.CaptureAsync(false, ct);
         var wanted = saved.Windows.Where(w => !ExplorerCollector.IsExplorer(w) && ApplicationPolicy.RuleFor(settings, w) != null).ToList();
         // Assign strongest matches first so a generic match cannot steal another document's exact title.
@@ -189,7 +191,8 @@ internal sealed class RestoreEngine(Action<string> status)
         var placement = Win32.Placement.New();
         if (!Win32.GetWindowPlacement(hwnd, ref placement)) { Failure($"GetWindowPlacement: {saved.Title}"); return; }
         placement.NormalPosition = Win32.Rect.From(box with { X = box.X - target.WorkArea.X + target.Bounds.X, Y = box.Y - target.WorkArea.Y + target.Bounds.Y });
-        placement.ShowCmd = saved.State == WindowState.Maximized ? 3 : saved.State == WindowState.Minimized ? 2 : 1;
+        var targetState = WindowStatePolicy.Resolve(saved.State, windowMode);
+        placement.ShowCmd = targetState == WindowState.Maximized ? 3 : targetState == WindowState.Minimized ? 2 : 1;
         placement.Flags = 4; // WPF_ASYNCWINDOWPLACEMENT: do not block on another process's UI thread.
         if (!Win32.SetWindowPlacement(hwnd, ref placement)) { Failure($"Не удалось вернуть размер/состояние: {saved.Title}"); return; }
         used.Add(live.Hwnd); matched[saved.Id] = hwnd; assignedProcesses[ProcessGroup(saved)] = live.ProcessId; report.Restored++;

@@ -9,6 +9,7 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox startup = new() { Text = "Запускать вместе с Windows", AutoSize = true };
     private readonly NumericUpDown interval = new() { Minimum = 1, Maximum = 60, Width = 100 };
     private readonly NumericUpDown retention = new() { Minimum = 1, Maximum = 1000, Width = 100 };
+    private readonly ComboBox windowMode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 250 };
     private readonly DataGridView applications = new()
     {
         Width = 690, Height = 230, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
@@ -18,13 +19,17 @@ internal sealed class SettingsForm : Form
     {
         Text = "Настройки — Windows Workspace BlackBox";
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new(750, 650); MinimumSize = new(700, 580);
+        ClientSize = new(750, 710); MinimumSize = new(700, 580);
         StartPosition = FormStartPosition.CenterScreen;
         var layout = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new(20), AutoScroll = true };
         layout.Controls.Add(new Label { Text = "Восстановление после входа:", AutoSize = true });
         layout.Controls.Add(auto); layout.Controls.Add(manual); layout.Controls.Add(startup);
         layout.Controls.Add(new Label { Text = "Интервал сохранения, минут:", AutoSize = true }); layout.Controls.Add(interval);
         layout.Controls.Add(new Label { Text = "Количество снимков:", AutoSize = true }); layout.Controls.Add(retention);
+        windowMode.Items.AddRange(["Как в снимке", "Свернуть", "Показать"]);
+        windowMode.SelectedIndex = Enum.IsDefined(settings.WindowMode) ? (int)settings.WindowMode : 0;
+        layout.Controls.Add(new Label { Text = "Состояние окон после восстановления:", AutoSize = true });
+        layout.Controls.Add(windowMode);
         layout.Controls.Add(new Label
         {
             Text = "Включено — открыть и расставить. Выключено — не трогать.",
@@ -74,6 +79,7 @@ internal sealed class SettingsForm : Form
     {
         settings.AutoRestore = auto.Checked; settings.StartWithWindows = startup.Checked;
         settings.IntervalMinutes = (int)interval.Value; settings.Retention = (int)retention.Value;
+        settings.WindowMode = (RestoreWindowMode)windowMode.SelectedIndex;
         settings.ApplicationRulesConfigured = true;
         settings.BinaryRulesConfigured = true;
         settings.RestoreExplorer = applications.Rows[0].Cells["Track"].Value is true;

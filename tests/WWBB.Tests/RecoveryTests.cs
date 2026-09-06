@@ -5,6 +5,28 @@ namespace WWBB.Tests;
 
 public sealed class RecoveryTests : IDisposable
 {
+    [Theory]
+    [InlineData(WindowState.Normal)]
+    [InlineData(WindowState.Minimized)]
+    [InlineData(WindowState.Maximized)]
+    public void WindowModePreservesOrOverridesEachSavedState(WindowState saved)
+    {
+        Assert.Equal(saved, WindowStatePolicy.Resolve(saved, RestoreWindowMode.AsSaved));
+        Assert.Equal(WindowState.Minimized, WindowStatePolicy.Resolve(saved, RestoreWindowMode.Minimize));
+        Assert.Equal(WindowState.Normal, WindowStatePolicy.Resolve(saved, RestoreWindowMode.Show));
+    }
+
+    [Fact]
+    public void WindowModeDefaultsToSavedAndPersistsChoice()
+    {
+        var settings = System.Text.Json.JsonSerializer.Deserialize<Settings>("{}", Json.Options)!;
+        Assert.Equal(RestoreWindowMode.AsSaved, settings.WindowMode);
+        settings.WindowMode = RestoreWindowMode.Show;
+        var restored = System.Text.Json.JsonSerializer.Deserialize<Settings>(
+            System.Text.Json.JsonSerializer.Serialize(settings, Json.Options), Json.Options)!;
+        Assert.Equal(RestoreWindowMode.Show, restored.WindowMode);
+    }
+
     [Fact]
     public void ExplorerDefaultsOnAndOffSurvivesReload()
     {

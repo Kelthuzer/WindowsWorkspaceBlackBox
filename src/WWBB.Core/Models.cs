@@ -6,6 +6,16 @@ namespace WWBB.Core;
 public record Box(int X, int Y, int Width, int Height);
 public record MonitorLayout(string Device, Box Bounds, Box WorkArea, uint Dpi = 96);
 public enum WindowState { Normal, Minimized, Maximized }
+public enum RestoreWindowMode { AsSaved, Minimize, Show }
+public static class WindowStatePolicy
+{
+    public static WindowState Resolve(WindowState saved, RestoreWindowMode mode) => mode switch
+    {
+        RestoreWindowMode.Minimize => WindowState.Minimized,
+        RestoreWindowMode.Show => WindowState.Normal,
+        _ => saved
+    };
+}
 public enum ApplicationRestoreMode { ObserveOnly, LaunchIfMissing }
 public sealed record ApplicationRule
 {
@@ -52,6 +62,7 @@ public sealed class Settings
     public bool ApplicationRulesConfigured { get; set; }
     public bool BinaryRulesConfigured { get; set; }
     public bool RestoreExplorer { get; set; } = true;
+    public RestoreWindowMode WindowMode { get; set; } = RestoreWindowMode.AsSaved;
     public List<ApplicationRule> MonitoredApplications { get; set; } = [];
     public List<string> ExcludedExecutables { get; set; } = [];
 }

@@ -99,7 +99,8 @@ internal sealed class TrayContext : ApplicationContext
     private async Task<bool> SaveAsync(string reason)
     {
         if (stopping || locked) return false;
-        SetState("Сохранение…", SystemIcons.Information);
+        // A routine snapshot must not flash a different tray icon.
+        SetState("Сохранение…", icon.Icon ?? appIcon);
         AppData.Log("Snapshot started: " + reason);
         var snapshot = await CaptureClient.CaptureAsync(false, lifetime.Token, lastUserForeground);
         if (stopping || locked) return false;
@@ -163,7 +164,8 @@ internal sealed class TrayContext : ApplicationContext
     private void SetState(string text, Icon glyph)
     {
         if (stopping) return;
-        state.Text = text; icon.Icon = glyph;
+        state.Text = text;
+        if (!ReferenceEquals(icon.Icon, glyph)) icon.Icon = glyph;
         icon.Text = ("WWBB · " + text)[..Math.Min(63, 7 + text.Length)];
     }
     private void Balloon(string text, ToolTipIcon type = ToolTipIcon.Info)
